@@ -1,0 +1,38 @@
+# Démarrage : cp .env.example .env  (puis GEMINI_API_KEY) ; docker compose up --build
+# Prérequis : data/processed/jobs_clean.* et artifacts/emb_*.npy générés (voir README, étapes 2-3)
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      CVMATCH_HOME: /app
+      JOBS_PATH: /app/data/processed/jobs_clean.parquet
+      ARTIFACTS_DIR: /app/artifacts
+      CACHE_DIR: /app/data/cache
+    volumes:
+      - ./data/processed:/app/data/processed:ro   # offres (lecture seule)
+      - ./artifacts:/app/artifacts:ro             # embeddings (lecture seule)
+      - ./data/cache:/app/data/cache              # cache Gemini (écriture)
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      API_URL: http://backend:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      backend:
+        condition: service_healthy

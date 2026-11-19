@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "1. Préparer les offres", "type": "shell",
+      "command": "${command:python.interpreterPath} scripts/prepare_data.py", "problemMatcher": [] },
+    { "label": "2. Calculer les embeddings", "type": "shell",
+      "command": "${command:python.interpreterPath} scripts/build_artifacts.py", "problemMatcher": [] },
+    { "label": "3. CV fictifs de démo", "type": "shell",
+      "command": "${command:python.interpreterPath} scripts/make_demo_cvs.py", "problemMatcher": [] },
+    { "label": "Ablation ML (B0/F1/A1)", "type": "shell",
+      "command": "${command:python.interpreterPath} scripts/run_ablation.py", "problemMatcher": [] },
+    { "label": "Ablation LLM (L0/L1/A2)", "type": "shell",
+      "command": "${command:python.interpreterPath} scripts/run_llm_ablation.py --no-cache", "problemMatcher": [] },
+    { "label": "Tests", "type": "shell",
+      "command": "${command:python.interpreterPath} -m pytest", "group": "test", "problemMatcher": [] },
+    { "label": "Docker up", "type": "shell",
+      "command": "docker compose up --build", "problemMatcher": [] }
+  ]
+}

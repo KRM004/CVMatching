@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cvmatch"
+version = "0.1.0"
+description = "Intelligent CV Matching & Job Recommendation System (UIR - Artificial Intelligence)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "pandas",
+  "pyarrow",
+  "scikit-learn",
+  "python-dotenv",
+  "pydantic>=2",
+  "pymupdf",
+  "sentence-transformers",
+  "google-genai",
+  "fastapi",
+  "uvicorn[standard]",
+  "python-multipart",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "httpx",
+  "ruff",
+  "ipykernel",
+  "matplotlib",
+  "nbformat",
+  "datasets",
+  "streamlit",
+  "requests",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100

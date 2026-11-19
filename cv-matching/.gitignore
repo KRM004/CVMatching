@@ -1,0 +1,19 @@
+.venv/
+.env
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.pytest_cache/
+*.egg-info/
+# gros fichiers / données reconstructibles
+artifacts/*
+!artifacts/.gitkeep
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/cache/*
+!data/cache/.gitkeep
+# CV : ne JAMAIS committer de vrais CV
+data/eval/cvs/*
+!data/eval/cvs/.gitkeep
