@@ -15,7 +15,7 @@ def setup_logging(level: str = "INFO") -> None:
         h._cvmatch = True  # type: ignore[attr-defined]
         root.addHandler(h)
     root.setLevel(level.upper())
-    for noisy in ("httpx", "urllib3", "sentence_transformers", "filelock", "huggingface_hub"):
+    for noisy in ("httpx", "httpx2", "httpcore", "urllib3", "datasets", "fsspec", "sentence_transformers", "filelock", "huggingface_hub"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
