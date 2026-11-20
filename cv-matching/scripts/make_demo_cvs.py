@@ -10,7 +10,7 @@ from cvmatch.synthetic import make_demo_cvs
 
 def to_pdf(text: str, path) -> bool:
     try:
-        import fitz
+        import pymupdf as fitz
     except ImportError:
         return False
     doc = fitz.open()

@@ -23,6 +23,8 @@ class Ranker(Protocol):
         self, resume_text: str, top_k: int = 3, candidates: Optional[Sequence[int]] = None
     ) -> list[Ranked]: ...
 
+    def score_many(self, resume_texts: Sequence[str]) -> np.ndarray: ...  # (n_cv, n_offres)
+
 
 def top_k_from_scores(
     scores: np.ndarray, top_k: int, candidates: Optional[Sequence[int]] = None
@@ -45,10 +47,14 @@ def top_k_from_scores(
 
 
 _TITLE_NOISE = re.compile(r"\((?:h|m|f|h/f|f/h|m/f|f/m)\)|\d+|[-–|/].*$", re.IGNORECASE)
+_SENIORITY = re.compile(
+    r"\b(?:junior|senior|confirme|experimente|debutant|stagiaire|stage|sr|jr|h/f|f/h)\b"
+)
 
 
 def title_key(title: str) -> str:
-    return re.sub(r"\s+", " ", _TITLE_NOISE.sub(" ", fold(title or ""))).strip()
+    t = _TITLE_NOISE.sub(" ", fold(title or ""))
+    return re.sub(r"\s+", " ", _SENIORITY.sub(" ", t)).strip()
 
 
 def diversify(ranked: list[Ranked], titles: Sequence[str], k: int) -> list[Ranked]:

@@ -7,6 +7,10 @@
       "command": "${command:python.interpreterPath} scripts/build_artifacts.py", "problemMatcher": [] },
     { "label": "3. CV fictifs de démo", "type": "shell",
       "command": "${command:python.interpreterPath} scripts/make_demo_cvs.py", "problemMatcher": [] },
+    { "label": "Importer le corpus de CV (5054)", "type": "shell",
+      "command": "${command:python.interpreterPath} scripts/import_cvs.py --source ${input:cvSource} --sample-eval 60", "problemMatcher": [] },
+    { "label": "Matching en lot (corpus)", "type": "shell",
+      "command": "${command:python.interpreterPath} scripts/batch_match.py", "problemMatcher": [] },
     { "label": "Ablation ML (B0/F1/A1)", "type": "shell",
       "command": "${command:python.interpreterPath} scripts/run_ablation.py", "problemMatcher": [] },
     { "label": "Ablation LLM (L0/L1/A2)", "type": "shell",
@@ -15,5 +19,9 @@
       "command": "${command:python.interpreterPath} -m pytest", "group": "test", "problemMatcher": [] },
     { "label": "Docker up", "type": "shell",
       "command": "docker compose up --build", "problemMatcher": [] }
+  ],
+  "inputs": [
+    { "id": "cvSource", "type": "promptString",
+      "description": "Dossier de CV ou fichier CSV/Parquet", "default": "data/raw/cvs" }
   ]
 }

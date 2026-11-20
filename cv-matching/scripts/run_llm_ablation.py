@@ -10,6 +10,7 @@ import time
 
 import pandas as pd
 
+from cvmatch.cleaning import clean_text, raw_text
 from cvmatch.config import get_settings
 from cvmatch.data import load_jobs
 from cvmatch.evaluation import load_cvs
@@ -60,7 +61,8 @@ def main() -> None:
     for cv_id, text in cvs.items():
         masked = mask_pii(text)
         skills = extract_skills(masked)
-        top3 = ranker.rank(masked, top_k=3)  # Top 3 figé, identique pour toutes les configs
+        query = clean_text(masked) if s.cleaning else raw_text(masked)  # comme l'API
+        top3 = ranker.rank(query, top_k=3)  # Top 3 figé, identique pour toutes les configs
         for r in top3:
             row = jobs.iloc[r.index]
             job = {"job_title": row["job_title"], "job_description": row["job_description"]}

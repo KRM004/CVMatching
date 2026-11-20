@@ -1,0 +1,32 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cv-matching
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Installer (PyTorch CPU pour aller plus vite)
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[dev]"
+      - name: Tests unitaires
+        run: pytest -v
+      - name: Pipeline hors-ligne (données synthétiques)
+        env:
+          RANKER: tfidf
+          EXPLAINER: rules
+        run: |
+          python scripts/prepare_data.py --synthetic
+          python scripts/make_demo_cvs.py
+          python scripts/make_eval_pool.py --no-sbert
+          python scripts/run_ablation.py --proxy --only-tfidf

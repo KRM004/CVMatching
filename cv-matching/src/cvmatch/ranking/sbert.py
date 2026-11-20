@@ -51,6 +51,19 @@ class SbertRanker:
         v = vecs.mean(axis=0)
         return v / max(float(np.linalg.norm(v)), 1e-9)
 
+    def score_many(self, resume_texts: Sequence[str]) -> np.ndarray:
+        """Scores de plusieurs CV d'un coup (tous les blocs encodés en un seul lot)."""
+        chunks, owner = [], []
+        for i, t in enumerate(resume_texts):
+            for c in chunk_words(t):
+                chunks.append(c)
+                owner.append(i)
+        vecs = np.asarray(self.encoder(chunks), dtype=np.float32)
+        q = np.zeros((len(resume_texts), vecs.shape[1]), dtype=np.float32)
+        np.add.at(q, np.asarray(owner), vecs)
+        q /= np.clip(np.linalg.norm(q, axis=1, keepdims=True), 1e-9, None)
+        return q @ self.embeddings.T
+
     def rank(
         self, resume_text: str, top_k: int = 3, candidates: Optional[Sequence[int]] = None
     ) -> list[Ranked]:

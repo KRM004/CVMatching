@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
+import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from ..cleaning import TOKEN_PATTERN
@@ -27,6 +28,11 @@ class TfidfRanker:
     def scores(self, resume_text: str):
         q = self.vectorizer.transform([resume_text])
         return (self.matrix @ q.T).toarray().ravel()  # cosinus (vecteurs normalisés)
+
+    def score_many(self, resume_texts: Sequence[str]) -> np.ndarray:
+        """Scores de plusieurs CV d'un coup : matrice (n_cv, n_offres)."""
+        q = self.vectorizer.transform(list(resume_texts))
+        return (q @ self.matrix.T).toarray().astype(np.float32)
 
     def rank(
         self, resume_text: str, top_k: int = 3, candidates: Optional[Sequence[int]] = None

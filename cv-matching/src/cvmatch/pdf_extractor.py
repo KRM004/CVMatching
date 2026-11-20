@@ -10,7 +10,7 @@ class PdfTextError(Exception):
 
 
 def extract_pdf_text(file: Union[str, Path, bytes, BinaryIO], min_chars: int = 50) -> str:
-    import fitz  # PyMuPDF
+    import pymupdf as fitz  # PyMuPDF (l'ancien nom `fitz` est déprécié)
 
     try:
         if isinstance(file, (str, Path)):

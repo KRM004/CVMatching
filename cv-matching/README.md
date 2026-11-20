@@ -59,6 +59,22 @@ remplacez-les par des CV **anonymisés/consentis** (par ex. un échantillon du d
 matching », CV emploi.ma anonymisés — vérifiez sa licence et son schéma) convertis en `.txt` ou `.pdf`
 dans `data/eval/cvs/`, puis relancez les étapes 4 à 8.
 
+## 2 bis. Grand corpus de CV (ex. 5054 CV)
+
+```bash
+# Dossier de PDF/TXT (sous-dossier = catégorie) OU CSV/Parquet/Excel (colonnes détectées automatiquement)
+python scripts/import_cvs.py --source data/raw/cvs/ --sample-eval 60
+python scripts/import_cvs.py --source data/raw/Resume.csv --text-col Resume_str --category-col Category --sample-eval 60
+python scripts/batch_match.py --ranker tfidf      # puis --ranker sbert
+```
+
+- `import_cvs.py` : lit, **masque les PII dès l'import**, retire les CV vides/trop courts et les doublons,
+  écrit `data/processed/cvs.parquet`. `--sample-eval N` copie N CV (stratifiés par catégorie) dans
+  `data/eval/cvs/` : ce sont **eux** qu'on annote (étapes 4-6) — annoter 5054 CV à la main est irréaliste.
+- `batch_match.py` : Top 3 de **tous** les CV par lots (sans Gemini, quota), et `results/batch_*.csv` :
+  latence par CV, distribution des scores, couverture du catalogue, secteur recommandé par catégorie de CV.
+- Vérifiez la **licence** du dataset de CV et citez-la dans le rapport ; ne committez jamais de vrais CV.
+
 ## 3. Ground truth (Precision@3)
 
 1. `pool_to_annotate.csv` contient, pour chaque CV : top-6 TF-IDF ∪ top-6 SBERT ∪ 4 offres aléatoires,
@@ -132,9 +148,10 @@ src/cvmatch/        package métier (importé par notebooks, API, scripts, tests
   service.py          pipeline extract → match → explain
   schemas.py          contrat JSON partagé (Pydantic)               [M2.1]
   evaluation.py       Precision@3, latence, deltas, labels
+  cv_corpus.py        import d'un grand corpus de CV (dossier ou CSV), masquage, dédoublonnage
 backend/  main.py (POST /match, /match_text, /health) + Dockerfile    [M2.5, M2.7]
 frontend/ app.py (Streamlit) + Dockerfile                              [M2.6, M2.7]
-scripts/  prepare_data · build_artifacts · make_* · run_ablation · run_llm_ablation
+scripts/  prepare_data · build_artifacts · import_cvs · batch_match · make_* · run_ablation · run_llm_ablation
 notebooks/ 00_Colab_Run_All · 01_EDA · 02_TFIDF_Baseline · 03_SentenceBERT · 05_Ablation_ML · 06_Evaluation_Ablation
 tests/ · compose.yaml · .env.example · .vscode/
 ```
