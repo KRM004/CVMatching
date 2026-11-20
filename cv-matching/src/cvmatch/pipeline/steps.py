@@ -149,11 +149,20 @@ def _cvs(ctx: Context) -> dict:
 
     cv_dir = ctx.settings.cvs_dir
     existing = [p for p in cv_dir.glob("*") if p.suffix.lower() in {".txt", ".pdf"}]
+    meta_path = ctx.eval_dir / "cv_meta.json"
     if existing and not ctx.force:
         log.info("%d CV déjà présents dans %s : conservés.", len(existing), cv_dir)
+        if not meta_path.exists():  # méta perdue : on la reconstruit pour les CV de démo
+            from ..data.synthetic import make_demo_cvs
+
+            stems = {p.stem for p in existing}
+            meta = {k: {"target_keywords": v["target_keywords"], "family": v["family"]}
+                    for k, v in make_demo_cvs().items() if k in stems}
+            if meta:
+                write_json(meta, meta_path)
     elif ctx.cfg.eval.demo_cvs:
         meta = write_demo_cvs(cv_dir)
-        write_json(meta, ctx.eval_dir / "cv_meta.json")
+        write_json(meta, meta_path)
         log.info("%d CV FICTIFS écrits -> %s", len(meta), cv_dir)
     else:
         raise FileNotFoundError(f"Aucun CV dans {cv_dir} (eval.demo_cvs = false).")
@@ -219,8 +228,14 @@ def _ablate_ml(ctx: Context) -> dict:
     from ..evaluation.annotation import load_labels
 
     path, tag = _labels_path(ctx)
+    labels = {cv: pool for cv, pool in load_labels(path).items() if cv in ctx.cvs()}
+    if not labels:
+        raise ValueError(
+            f"Aucun label exploitable dans {path} pour les CV de {ctx.settings.cvs_dir}. "
+            "Annotez data/eval/pool_to_annotate.csv (annotator_1 / annotator_2) ; les labels proxy "
+            "n'existent que pour les CV de démo (cv_meta.json).")
     per_cv, summary = run_ml_ablation(
-        ctx.jobs(), ctx.cvs(), load_labels(path), ctx.settings, with_sbert=ctx.use_sbert,
+        ctx.jobs(), ctx.cvs(), labels, ctx.settings, with_sbert=ctx.use_sbert,
         k=ctx.cfg.eval.k, encoder=ctx.encoder() if ctx.use_sbert else None)
     r = ctx.settings.results_dir
     write_table(per_cv, r / f"ablation_ml{tag}.csv")

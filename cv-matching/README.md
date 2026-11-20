@@ -134,7 +134,7 @@ cv-matching/
 │   ├── api/app.py               FastAPI
 │   └── utils/                   io.py · cache.py · logging.py · packaging.py
 ├── ui/app.py                    Streamlit (client HTTP de l'API)
-├── notebooks/                   00 Colab tout-en-un · 01 EDA · 02 TF-IDF · 03 SBERT · 05/06 ablations
+├── notebooks/                   Projet_CV_Matching (rendu académique complet) · 00 Colab · 01-06 études
 ├── tests/unit/ · tests/integration/   (dont le pipeline complet hors-ligne)
 ├── docker/ · compose.yaml · Makefile · .env.example · .vscode/
 ├── data/{raw,processed,cache,eval}/  artifacts/  results/   (générés, non versionnés)
@@ -153,14 +153,21 @@ cv-matching/
 - **Limites** : catalogue 2005-2022, pas de filtre d'éligibilité, dictionnaire de compétences extensible
   (`preprocessing/skills.py`), troncature des très longues offres par SBERT.
 
-## 9. Tests & archive
+## 9. Notebook de rendu
+
+`notebooks/Projet_CV_Matching.ipynb` présente tout le projet sous forme de rapport exécutable : problématique,
+données (EDA), prétraitement, modèles, explications et garde-fou, protocole d'évaluation, résultats des ablations,
+démonstration, éthique, limites, conclusion et annexes. Il lit les sorties du pipeline (et lance les étapes
+manquantes si `RUN_PIPELINE = True`). Exécutez-le entièrement (*Run All*) puis enregistrez-le avec ses sorties.
+
+## 10. Tests & archive
 
 ```bash
 pytest                 # unitaires + intégration (pipeline hors-ligne, API, PDF, CLI)
 cvmatch package        # dist/cv-matching.zip (code + config + docs, sans données ni .env)
 ```
 
-## 10. Dépannage
+## 11. Dépannage
 
 - `Catalogue introuvable` → `cvmatch prepare` ; `Embeddings introuvables` → `cvmatch embed`.
 - `/health` = `degraded` → lire le champ `error`.
