@@ -22,3 +22,6 @@ data/eval/cvs/*
 !data/eval/cvs/.gitkeep
 results/*
 !results/.gitkeep
+# auto-générés par le pipeline (cvmatch cvs / pool)
+data/eval/cv_meta.json
+data/eval/proxy_labels.csv
