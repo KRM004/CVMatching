@@ -7,11 +7,11 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from ..cleaning import fold, normalize_spaces
+from ..preprocessing.cleaning import fold, normalize_spaces
 from ..schemas import Explanation
+from ..utils.cache import JsonCache, make_key
 from .prompts import PROMPT_VERSION, build_prompt
 from .rules import RuleExplainer
-from ..cache import JsonCache, make_key
 
 
 class GeminiUnavailable(RuntimeError):

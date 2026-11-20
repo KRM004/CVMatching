@@ -1,17 +1,12 @@
-import numpy as np
 import pandas as pd
 import pytest
-from sklearn.feature_extraction.text import HashingVectorizer
 
 from cvmatch.config import Settings
-from cvmatch.data import prepare_jobs
-from cvmatch.synthetic import make_synthetic_jobs
+from cvmatch.data.catalog import prepare_jobs
+from cvmatch.data.synthetic import make_synthetic_jobs
+from cvmatch.ranking.sbert import hashing_encoder
 
-
-def hash_encoder(texts):
-    """Encodeur factice déterministe (pas de téléchargement) pour tester la chaîne SBERT."""
-    hv = HashingVectorizer(n_features=512, alternate_sign=False, norm="l2")
-    return hv.transform(list(texts)).toarray().astype(np.float32)
+hash_encoder = hashing_encoder()  # encodeur factice déterministe (pas de téléchargement)
 
 
 @pytest.fixture(scope="session")
@@ -26,10 +21,16 @@ def jobs(raw_jobs) -> pd.DataFrame:
 
 @pytest.fixture
 def settings(tmp_path) -> Settings:
+    """Settings isolés : tout est écrit dans tmp_path, aucun réseau."""
     s = Settings()
     s.ranker, s.explainer, s.cleaning = "tfidf", "rules", True
     s.gemini_api_key = ""
+    s.sbert_model = "hashing"
+    s.root = tmp_path
+    s.data_dir = tmp_path / "data"
+    s.jobs_path = tmp_path / "data" / "processed" / "jobs_clean.parquet"
     s.artifacts_dir = tmp_path / "artifacts"
-    s.cache_dir = tmp_path / "cache"
-    s.jobs_path = tmp_path / "jobs.csv"
+    s.cache_dir = tmp_path / "data" / "cache"
+    s.eval_dir = tmp_path / "data" / "eval"
+    s.results_dir = tmp_path / "results"
     return s

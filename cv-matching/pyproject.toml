@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cvmatch"
-version = "0.1.0"
+version = "1.0.0"
 description = "Intelligent CV Matching & Job Recommendation System (UIR - Artificial Intelligence)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,27 +14,23 @@ dependencies = [
   "pyarrow",
   "scikit-learn",
   "python-dotenv",
+  "pyyaml",
   "pydantic>=2",
   "pymupdf",
-  "sentence-transformers",
-  "google-genai",
   "fastapi",
   "uvicorn[standard]",
   "python-multipart",
 ]
 
 [project.optional-dependencies]
-dev = [
-  "pytest",
-  "httpx",
-  "ruff",
-  "ipykernel",
-  "matplotlib",
-  "nbformat",
-  "datasets",
-  "streamlit",
-  "requests",
-]
+ml = ["sentence-transformers", "datasets"]       # SBERT + téléchargement Hugging Face
+llm = ["google-genai"]                           # explications Gemini
+ui = ["streamlit", "requests"]
+dev = ["pytest", "httpx", "ruff", "ipykernel", "matplotlib", "nbformat"]
+all = ["cvmatch[ml,llm,ui,dev]"]
+
+[project.scripts]
+cvmatch = "cvmatch.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -42,6 +38,12 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning", "ignore::FutureWarning"]
 
 [tool.ruff]
 line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]

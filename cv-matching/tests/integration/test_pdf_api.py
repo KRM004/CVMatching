@@ -1,14 +1,14 @@
 import pytest
 
-fitz = pytest.importorskip("fitz")
+fitz = pytest.importorskip("pymupdf")
 pytest.importorskip("fastapi")
 pytest.importorskip("httpx")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from cvmatch.data import write_table  # noqa: E402
-from cvmatch.pdf_extractor import PdfTextError, extract_pdf_text  # noqa: E402
-from cvmatch.synthetic import make_demo_cvs  # noqa: E402
+from cvmatch.data.synthetic import make_demo_cvs  # noqa: E402
+from cvmatch.preprocessing.pdf import PdfTextError, extract_pdf_text  # noqa: E402
+from cvmatch.utils.io import write_table  # noqa: E402
 
 CV_TEXT = make_demo_cvs()["cv_01"]["text"]
 
@@ -38,7 +38,7 @@ def client(jobs, tmp_path, monkeypatch):
     for k, v in {"JOBS_PATH": str(path), "RANKER": "tfidf", "EXPLAINER": "rules",
                  "GEMINI_API_KEY": "", "CACHE_DIR": str(tmp_path / "cache")}.items():  # fmt: skip
         monkeypatch.setenv(k, v)
-    from backend.main import app
+    from cvmatch.api.app import app
 
     with TestClient(app) as c:
         yield c

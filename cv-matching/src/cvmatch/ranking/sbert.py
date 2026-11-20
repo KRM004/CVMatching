@@ -9,6 +9,9 @@ from .base import Ranked, top_k_from_scores
 
 Encoder = Callable[[list[str]], np.ndarray]
 
+#: Nom spécial : encodeur déterministe sans téléchargement (tests / pipeline hors-ligne).
+HASHING_MODEL = "hashing"
+
 
 def chunk_words(text: str, size: int = 110, max_chunks: int = 8) -> list[str]:
     """Découpe un long CV en blocs (le modèle tronque à ~128 tokens), moyennés ensuite."""
@@ -19,7 +22,22 @@ def chunk_words(text: str, size: int = 110, max_chunks: int = 8) -> list[str]:
     return chunks[:max_chunks]
 
 
+def hashing_encoder(n_features: int = 512) -> Encoder:
+    """Encodeur factice (HashingVectorizer) : valide la chaîne SBERT sans réseau.
+    Ne JAMAIS l'utiliser pour rapporter des résultats."""
+    from sklearn.feature_extraction.text import HashingVectorizer
+
+    hv = HashingVectorizer(n_features=n_features, alternate_sign=False, norm="l2")
+
+    def encode(texts: list[str]) -> np.ndarray:
+        return hv.transform(list(texts)).toarray().astype(np.float32)
+
+    return encode
+
+
 def load_sentence_transformer(model_name: str, max_seq_length: int = 256) -> Encoder:
+    if model_name == HASHING_MODEL:
+        return hashing_encoder()
     from sentence_transformers import SentenceTransformer
 
     model = SentenceTransformer(model_name)

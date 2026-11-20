@@ -1,0 +1,28 @@
+# Paramètres du pipeline hors-ligne  (cvmatch pipeline --config configs/pipeline.yaml)
+# Les options CLI (--offline, --synthetic, --tfidf-only, --max-rows, --sectors, --raw) priment.
+
+data:
+  source: huggingface      # huggingface (Rekrute) | synthetic (offres fictives) | local
+  raw_path: null           # fichier .parquet/.csv si source = local
+  min_year: 2019           # offres récentes uniquement
+  max_rows: 15000          # échantillon (null = tout)
+  sectors: []              # ex. [informatique, ingenieur]
+
+embeddings:
+  enabled: true            # false = TF-IDF seul (aucun modèle à télécharger)
+  variants: [clean, raw]   # clean = F1, raw = A1 (ablation du cleaning)
+  batch_size: 64
+
+eval:
+  demo_cvs: true           # 20 CV fictifs si data/eval/cvs/ est vide
+  pool_top_n: 6            # top-N TF-IDF ∪ top-N SBERT par CV
+  pool_random: 4           # + offres aléatoires (négatifs probables)
+  seed: 42
+  k: 3                     # Precision@k
+  labels: auto             # auto (annotations si présentes, sinon proxy) | annotated | proxy
+
+llm:
+  enabled: true
+  ranker: tfidf            # Top-k figé utilisé pour comparer L0 / L1 / A2
+  n_cvs: 20
+  use_cache: false         # false = latence mesurée sans cache

@@ -1,12 +1,11 @@
-import numpy as np
 import pytest
 
-from cvmatch.artifacts import build_embeddings, embeddings_path, load_embeddings
+from conftest import hash_encoder
 from cvmatch.data import job_texts, validate_jobs
+from cvmatch.data.synthetic import make_demo_cvs
 from cvmatch.ranking import SbertRanker, TfidfRanker, diversify
 from cvmatch.ranking.base import Ranked
-from cvmatch.synthetic import make_demo_cvs
-from conftest import hash_encoder
+from cvmatch.ranking.embeddings import build_embeddings, embeddings_path, load_embeddings
 
 CVS = make_demo_cvs()
 

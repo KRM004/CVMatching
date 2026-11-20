@@ -6,10 +6,11 @@ from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
-from cvmatch.config import get_settings
-from cvmatch.pdf_extractor import PdfTextError, extract_pdf_text
-from cvmatch.schemas import MatchResponse, MatchTextRequest
-from cvmatch.service import build_service
+from .. import __version__
+from ..config import get_settings
+from ..preprocessing.pdf import PdfTextError, extract_pdf_text
+from ..schemas import MatchResponse, MatchTextRequest
+from ..service import build_service
 
 MAX_PDF_BYTES = 5 * 1024 * 1024
 
@@ -29,7 +30,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CV Matching API",
     description="Upload d'un CV PDF -> Top 3 offres (TF-IDF / Sentence-BERT) + explications Gemini.",
-    version="0.1.0",
+    version=__version__,
     lifespan=lifespan,
 )
 

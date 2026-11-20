@@ -2,13 +2,14 @@ import json
 
 import pytest
 
-from cvmatch.evaluation import delta, finalize_labels, evaluate_ranker, precision_at_k
+from cvmatch.data import job_texts
+from cvmatch.data.synthetic import make_demo_cvs
+from cvmatch.evaluation import delta, evaluate_ranker, finalize_labels, precision_at_k
 from cvmatch.explain.gemini import GeminiExplainer, verify_against_sources
 from cvmatch.explain.rules import RuleExplainer
 from cvmatch.ranking import TfidfRanker
-from cvmatch.data import job_texts, write_table
 from cvmatch.service import build_service
-from cvmatch.synthetic import make_demo_cvs
+from cvmatch.utils.io import write_table
 
 CVS = make_demo_cvs()
 JOB = {
@@ -102,7 +103,7 @@ def test_evaluation_metrics(jobs, tmp_path):
     labels = {"cv_01": {ids[0]: 1, ids[1]: 0, ids[2]: 0, ids[3]: 1}}
     ranker = TfidfRanker(job_texts(jobs, True))
     df = evaluate_ranker(ranker, jobs, {"cv_01": CVS["cv_01"]["text"]}, labels)
-    assert len(df) == 1 and 0 <= df["p_at_3"][0] <= df["p_at_3_max"][0] <= 1
+    assert len(df) == 1 and 0 <= df["p_at_k"][0] <= df["p_at_k_max"][0] <= 1
     assert df["latency_s"][0] > 0
 
 
@@ -116,3 +117,13 @@ def test_finalize_labels(tmp_path):
     labels = pd.read_csv(tmp_path / "labels.csv")
     assert labels["relevant"].tolist() == [1, 0, 0, 0]
     assert stats["n_disagreements"] == 2 and stats["agreement"] == 0.5
+
+
+def test_recommend_jobs_contract(jobs):
+    from cvmatch.matching import recommend_jobs
+
+    out = recommend_jobs(CVS["cv_04"]["text"], jobs, top_k=3)
+    assert set(out) == {"resume_skills", "recommendations"}
+    assert len(out["recommendations"]) == 3
+    assert set(out["recommendations"][0]) == {"job_id", "job_title", "job_description",
+                                              "similarity_score"}

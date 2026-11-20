@@ -7,7 +7,7 @@ from typing import Optional, Protocol, Sequence
 
 import numpy as np
 
-from ..cleaning import fold
+from ..preprocessing.cleaning import fold
 
 
 @dataclass

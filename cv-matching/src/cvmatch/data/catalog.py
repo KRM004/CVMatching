@@ -1,4 +1,4 @@
-"""Chargement / nettoyage du catalogue d'offres (Rekrute Maroc, Hugging Face)."""
+"""Étape 1 du pipeline : chargement, nettoyage et validation du catalogue d'offres (Rekrute Maroc)."""
 from __future__ import annotations
 
 import hashlib
@@ -8,7 +8,8 @@ from typing import Iterable, Optional
 
 import pandas as pd
 
-from .cleaning import clean_text, fold
+from ..preprocessing.cleaning import clean_text, fold
+from ..utils.io import read_table
 
 RAW_REPO = "adlbh/rekrute-2005-2022"
 
@@ -33,24 +34,6 @@ CLEAN_COLUMNS = [
     "job_id", "job_title", "job_description", "company", "city", "sector",
     "function", "education", "experience", "year",
 ]  # fmt: skip
-
-
-def read_table(path: Path) -> pd.DataFrame:
-    path = Path(path)
-    if path.suffix == ".parquet":
-        return pd.read_parquet(path)
-    if path.suffix in {".csv", ".tsv"}:
-        return pd.read_csv(path, sep="\t" if path.suffix == ".tsv" else ",")
-    raise ValueError(f"Format non supporté : {path.suffix}")
-
-
-def write_table(df: pd.DataFrame, path: Path) -> None:
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.suffix == ".parquet":
-        df.to_parquet(path, index=False)
-    else:
-        df.to_csv(path, index=False)
 
 
 def load_raw_jobs(path: Optional[Path] = None) -> pd.DataFrame:

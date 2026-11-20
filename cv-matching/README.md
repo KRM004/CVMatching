@@ -1,175 +1,169 @@
 # Intelligent CV Matching & Job Recommendation System
 
 CV PDF → extraction du texte → masquage des données personnelles → **Top 3 offres** (TF-IDF ou
-Sentence-BERT) → **explications Gemini** (compétences en commun / à développer, preuves) ou à règles.
-Catalogue d'offres : **Rekrute (Maroc)** — `adlbh/rekrute-2005-2022` sur Hugging Face.
+Sentence-BERT) → **explications** (Gemini avec garde-fou anti-invention, ou à règles).
+Catalogue d'offres : **Rekrute (Maroc)** — `adlbh/rekrute-2005-2022` (Hugging Face).
 
 > Le « matching score » est une **proximité textuelle/sémantique**, pas une probabilité d'embauche.
-> Aucun résultat chiffré n'est fourni dans ce dépôt : tout est **mesuré par vos scripts** sur votre jeu annoté.
+> Aucun résultat chiffré n'est fourni : tout est **mesuré par le pipeline** sur votre jeu annoté.
 
----------------------------------------------------------------------------------------------------
+---
 
-## 1. Installation (VS Code)
+## 1. Démarrage rapide
 
-Prérequis : Python 3.10 – 3.12, Git, VS Code (extensions Python + Jupyter ; Docker optionnel).
-Ouvrez le dossier (`File → Open Folder`), VS Code propose d'installer les extensions recommandées.
-
-**Windows (PowerShell)**
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1          # si bloqué : Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-python -m pip install --upgrade pip
-pip install -e ".[dev]"
-Copy-Item .env.example .env
-```
-
-**macOS / Linux**
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -e ".[dev]"
-cp .env.example .env
+python -m venv .venv && source .venv/bin/activate      # Windows : .\.venv\Scripts\Activate.ps1
+pip install -e ".[all]"                                # ou ".[dev,ui]" sans SBERT/torch
+cp .env.example .env                                   # puis GEMINI_API_KEY (optionnel)
+
+cvmatch pipeline --offline     # démo 100 % hors-ligne (≈ 2 s) : vérifie toute la chaîne
+cvmatch pipeline               # vrai pipeline : Rekrute + Sentence-BERT (+ Gemini si clé)
+cvmatch serve                  # API  -> http://localhost:8000/docs
+streamlit run ui/app.py        # UI   -> http://localhost:8501
 ```
 
-Puis `Ctrl+Shift+P` → **Python: Select Interpreter** → `.venv`. Éditez `.env` et mettez votre
-`GEMINI_API_KEY` (clé gratuite : Google AI Studio). **Ne committez jamais `.env`** (déjà dans `.gitignore`).
+`make help` liste les mêmes raccourcis (`make demo`, `make test`, `make zip`, …).
 
-Test rapide de l'installation : `pytest` (ou tâche VS Code **Tests**).
+## 2. Le pipeline
 
-## 2. Pipeline, étape par étape
+```
+ ┌─────────┐   ┌───────┐   ┌─────┐   ┌──────┐   ┌────────┐   ┌───────────┐   ┌────────────┐   ┌────────┐
+ │ prepare │ → │ embed │ → │ cvs │ → │ pool │ → │ labels │ → │ ablate-ml │ → │ ablate-llm │ → │ report │
+ └─────────┘   └───────┘   └─────┘   └──────┘   └────────┘   └───────────┘   └────────────┘   └────────┘
+```
 
-| # | Commande | Rôle | Livrable |
-|---|----------|------|----------|
-| 1 | `python scripts/prepare_data.py` | Télécharge Rekrute, inspecte, nettoie, dédoublonne | `data/processed/jobs_clean.parquet` |
-| 2 | `python scripts/build_artifacts.py` | Embeddings SBERT des offres (variantes *clean* et *raw*) | `artifacts/emb_*.npy` |
-| 3 | `python scripts/make_demo_cvs.py` | 20 CV **fictifs** (txt + pdf) pour tester | `data/eval/cvs/` |
-| 4 | `python scripts/make_eval_pool.py` | Pool d'offres candidates à annoter par CV | `data/eval/pool_to_annotate.csv` |
-| 5 | *Annotation à deux* (voir §3) | Ground truth | colonnes `annotator_1/2` |
-| 6 | `python scripts/finalize_labels.py` | Fusion + accord/kappa | `data/eval/labels.csv` |
-| 7 | `python scripts/run_ablation.py` | B0 / F1 / A1 : Precision@3 + latence | `results/ablation_ml*.csv` |
-| 8 | `python scripts/run_llm_ablation.py --no-cache` | L0 / L1 / A2 : fidélité + latence | `results/ablation_llm.csv` |
+| Étape | Rôle | Sorties |
+|-------|------|---------|
+| `prepare` | Télécharge Rekrute (ou fichier local / données fictives), filtre, nettoie, dédoublonne, valide | `data/processed/jobs_clean.parquet` |
+| `embed` | Embeddings SBERT des offres, variantes *clean* (F1) et *raw* (A1) | `artifacts/emb_<modèle>_{clean,raw}.npy` |
+| `cvs` | CV de test : les vôtres dans `data/eval/cvs/`, sinon 20 CV **fictifs** (.txt + .pdf) | `data/eval/cvs/`, `cv_meta.json` |
+| `pool` | Par CV : top-N TF-IDF ∪ top-N SBERT ∪ offres aléatoires, mélangés | `data/eval/pool_to_annotate.csv`, `proxy_labels.csv` |
+| `labels` | Fusionne les 2 annotateurs (accord, kappa) ; sinon bascule en labels **proxy** | `data/eval/labels.csv`, `disagreements.csv` |
+| `ablate-ml` | B0 TF-IDF / F1 SBERT+cleaning / A1 SBERT sans cleaning : Precision@k + latence | `results/ablation_ml[_PROXY].csv`, `…_summary…` |
+| `ablate-llm` | L0 règles / L1 Gemini / A2 Gemini sans description : fidélité + latence | `results/ablation_llm.csv`, `…_summary.csv` |
+| `report` | Rapport Markdown consolidé | `results/report.md` |
 
-Options utiles : `prepare_data.py --sectors informatique ingenieur --max-rows 8000` (sous-ensemble IT) ·
-`prepare_data.py --raw chemin.parquet` (fichier local) · `make_eval_pool.py --no-sbert` (sans modèle).
-Les tâches VS Code (`Ctrl+Shift+P` → *Tasks: Run Task*) lancent les mêmes commandes.
+Chaque exécution écrit `results/pipeline_run.json` (config, durée et statut de chaque étape).
 
-**CV de test réalistes.** Les 20 CV de l'étape 3 servent à vérifier la chaîne technique. Pour l'évaluation,
-remplacez-les par des CV **anonymisés/consentis** (par ex. un échantillon du dataset Figshare « GIS + NLP job
-matching », CV emploi.ma anonymisés — vérifiez sa licence et son schéma) convertis en `.txt` ou `.pdf`
-dans `data/eval/cvs/`, puis relancez les étapes 4 à 8.
+```bash
+cvmatch pipeline --from pool          # reprend à une étape
+cvmatch pipeline --to embed           # s'arrête après une étape (ex. avant Docker)
+cvmatch pipeline --only ablate-ml report
+cvmatch embed --force                 # refait une étape déjà faite
+cvmatch pipeline --tfidf-only         # sans Sentence-BERT
+cvmatch prepare --sectors informatique ingenieur --max-rows 8000
+cvmatch prepare --raw chemin/rekrute.parquet
+```
+
+Les étapes coûteuses (`prepare`, `embed`, `pool`) sont **sautées si leurs sorties existent**
+(`--force` pour refaire). Un pool **déjà annoté n'est jamais écrasé**.
+
+Paramètres : `configs/pipeline.yaml` (source des données, années, échantillon, variantes
+d'embeddings, taille du pool, k, labels, ablation LLM). Les options CLI priment.
 
 ## 3. Ground truth (Precision@3)
 
-1. `pool_to_annotate.csv` contient, pour chaque CV : top-6 TF-IDF ∪ top-6 SBERT ∪ 4 offres aléatoires,
-   mélangées (les annotateurs ne voient pas le rang).
-2. Chaque membre remplit **seul** sa colonne (`1` = pertinente, `0` = non) avec une grille écrite
-   (ex. : métier visé + compétences clés compatibles + niveau d'études cohérent).
-3. `finalize_labels.py` : pertinent = **les deux** ont mis 1 ; il affiche accord et kappa de Cohen et liste
-   les désaccords (`data/eval/disagreements.csv`) à discuter.
-4. **Figez `labels.csv` avant les derniers tests** ; ne réglez aucun hyperparamètre dessus.
-5. Limites à citer : petit échantillon, biais de pooling (le pool vient des deux modèles), catalogue 2019-2022.
-6. `--proxy` (labels automatiques par mots-clés) sert uniquement à tester la chaîne : **jamais** pour le rapport.
+1. `pool_to_annotate.csv` : pour chaque CV, top-6 TF-IDF ∪ top-6 SBERT ∪ 4 offres aléatoires, mélangées.
+2. Chaque membre remplit **seul** sa colonne (`annotator_1` / `annotator_2` : 1 = pertinente, 0 = non)
+   avec une grille écrite (métier visé + compétences clés + niveau d'études cohérent).
+3. `cvmatch labels` : pertinent = **les deux** ont mis 1 ; accord + kappa de Cohen, désaccords listés.
+4. **Figez `labels.csv` avant les derniers tests** ; aucun hyperparamètre réglé dessus.
+5. Limites : petit échantillon, biais de pooling, catalogue 2019-2022.
+6. Labels **proxy** (mots-clés automatiques) = test technique uniquement : signalés `_PROXY` partout.
 
 ## 4. Ablations (même CV, même pool, un seul facteur change)
 
-| Test | Configuration | Commande / réglage |
-|------|---------------|--------------------|
-| B0 | TF-IDF + cosine | `run_ablation.py` |
-| F1 | SBERT + cleaning | `run_ablation.py` |
-| A1 | SBERT **sans** cleaning | `run_ablation.py` |
-| L0 | Top 3 + explication à règles | `run_llm_ablation.py` |
-| L1 | Gemini avec descriptions d'offres | `run_llm_ablation.py` |
-| A2 | Gemini **sans** descriptions d'offres | `run_llm_ablation.py` |
+| Test | Configuration | Mesure |
+|------|---------------|--------|
+| B0 | TF-IDF + cosinus | Precision@3, latence |
+| F1 | SBERT + cleaning | Precision@3, latence |
+| A1 | SBERT **sans** cleaning | Precision@3, latence |
+| L0 | Top 3 + explication à règles | fidélité, latence |
+| L1 | Gemini avec descriptions d'offres | fidélité, latence |
+| A2 | Gemini **sans** descriptions d'offres | fidélité, latence |
 
-`delta = version complète − version ablatée` (ex. 0,80 − 0,74 = +0,06). Delta nul ou négatif ⇒ pas de
-bénéfice démontré **sur ce test**. Gemini est jugé sur la **fidélité** (affirmations non retrouvées dans les
-sources, comptées automatiquement + grille manuelle `manual_*` à remplir à deux puis
-`run_llm_ablation.py --summarize`), pas sur la Precision@3. Notebooks : `05_Ablation_ML`, `06_Evaluation_Ablation`.
+`delta = version complète − version ablatée`. Delta ≤ 0 ⇒ pas de bénéfice démontré **sur ce test**.
+Gemini est jugé sur la **fidélité** (éléments retirés par le garde-fou + grille manuelle `manual_*`
+remplie à deux, puis `cvmatch ablate-llm --summarize`).
 
-## 5. Lancer l'application
+## 5. Application
 
-**Développement (F5)** : onglet *Run and Debug* → **Full stack (API + UI)** (FastAPI :8000 + Streamlit :8501).
-Ou à la main, dans deux terminaux :
-```bash
-uvicorn backend.main:app --reload --port 8000      # docs : http://localhost:8000/docs
-streamlit run frontend/app.py                      # UI   : http://localhost:8501
-```
-**Docker** (après les étapes 1 et 2) :
-```bash
-docker compose up --build
-```
-Deux conteneurs (backend + frontend), données et embeddings montés en **lecture seule**. Si Docker pose problème :
-plan B = notebook `00_Colab_Run_All.ipynb` (exécutable de haut en bas sur Colab, livrable exigé par l'UIR).
+| Mode | Commande |
+|------|----------|
+| API | `cvmatch serve` (ou `uvicorn cvmatch.api.app:app --reload`) |
+| UI | `streamlit run ui/app.py` (variable `API_URL`, défaut `http://localhost:8000`) |
+| VS Code | *Run and Debug* → **Full stack (API + UI)** ; *Tasks* pour chaque étape |
+| Docker | `cvmatch pipeline --to embed` puis `docker compose up --build` |
+| CLI | `cvmatch match data/eval/cvs/cv_01.pdf --explainer rules [--json]` |
 
-Sans clé Gemini ou en cas de quota dépassé, l'API affiche quand même le Top 3 avec l'explication à règles
-(`source: "rules_fallback"` + avertissement). Les appels Gemini sont mis en cache (`data/cache/`).
+Endpoints : `GET /health`, `POST /match` (PDF, multipart), `POST /match_text` (JSON).
+Sans clé Gemini ou quota dépassé : Top 3 + explication à règles (`source: "rules_fallback"` + avertissement).
 
-## 6. Configuration (`.env`)
+## 6. Configuration du service (`.env`)
 
 | Variable | Valeurs | Effet |
 |----------|---------|-------|
 | `RANKER` | `sbert` / `tfidf` | modèle de classement |
-| `CLEANING` | `on` / `off` | nettoyage du texte (A1) |
+| `CLEANING` | `on` / `off` | nettoyage du texte |
 | `EXPLAINER` | `gemini` / `rules` | explications par défaut |
-| `JOB_CONTEXT` | `on` / `off` | Gemini avec/sans description d'offre (A2) |
+| `JOB_CONTEXT` | `on` / `off` | Gemini avec/sans description d'offre |
 | `LANGUAGE` | `fr` / `en` | langue des explications |
-| `SBERT_MODEL` | nom Hugging Face | défaut : `paraphrase-multilingual-MiniLM-L12-v2` |
-| `GEMINI_MODEL` | nom du modèle | à ajuster si votre quota/clé n'y donne pas accès |
-| `GEMINI_MIN_INTERVAL` | secondes | espacement entre appels (quota gratuit) |
+| `SBERT_MODEL` | nom Hugging Face / `hashing` | `hashing` = encodeur factice hors-ligne (tests) |
+| `GEMINI_MODEL`, `GEMINI_MIN_INTERVAL` | | modèle Gemini, espacement des appels |
+| `JOBS_PATH`, `ARTIFACTS_DIR`, `CACHE_DIR`, `EVAL_DIR`, `RESULTS_DIR` | chemins | emplacements |
 
-Changer `CLEANING` ou `SBERT_MODEL` impose de relancer `build_artifacts.py` (embeddings dédiés par variante).
+`cvmatch info` affiche la configuration effective et l'état des fichiers.
 
-## 7. Structure du dépôt
+## 7. Structure
 
 ```
-src/cvmatch/        package métier (importé par notebooks, API, scripts, tests)
-  pdf_extractor.py    extract_pdf_text(file)                         [M1.3]
-  cleaning.py / pii.py / skills.py   nettoyage (garde C++, C#, .NET…), masquage PII, compétences
-  ranking/            tfidf.py (baseline) · sbert.py · base.py (top-k, diversité)   [M1.4-M1.6]
-  matching.py         recommend_jobs(resume_text, jobs, top_k=3)    [M1.7]
-  explain/            rules.py (L0) · gemini.py (L1/A2, cache, garde-fou) · prompts.py   [M2.3-M2.4]
-  service.py          pipeline extract → match → explain
-  schemas.py          contrat JSON partagé (Pydantic)               [M2.1]
-  evaluation.py       Precision@3, latence, deltas, labels
-backend/  main.py (POST /match, /match_text, /health) + Dockerfile    [M2.5, M2.7]
-frontend/ app.py (Streamlit) + Dockerfile                              [M2.6, M2.7]
-scripts/  prepare_data · build_artifacts · make_* · run_ablation · run_llm_ablation
-notebooks/ 00_Colab_Run_All · 01_EDA · 02_TFIDF_Baseline · 03_SentenceBERT · 05_Ablation_ML · 06_Evaluation_Ablation
-tests/ · compose.yaml · .env.example · .vscode/
+cv-matching/
+├── configs/pipeline.yaml        paramètres des étapes hors-ligne
+├── src/cvmatch/
+│   ├── cli.py                   commande `cvmatch` (pipeline, étapes, match, serve, info, package)
+│   ├── config.py                Settings (.env)
+│   ├── schemas.py               contrat JSON partagé (Pydantic)
+│   ├── service.py               inférence : CV -> PII -> nettoyage -> ranking -> explications
+│   ├── matching.py              recommend_jobs(resume_text, jobs, top_k=3)
+│   ├── data/                    catalog.py (Rekrute) · synthetic.py (données fictives)
+│   ├── preprocessing/           pdf.py · pii.py · cleaning.py · skills.py
+│   ├── ranking/                 base.py · tfidf.py · sbert.py · embeddings.py · factory.py
+│   ├── explain/                 rules.py · gemini.py (garde-fou, cache) · prompts.py · factory.py
+│   ├── evaluation/              annotation.py · metrics.py · ablation_ml.py · ablation_llm.py · report.py
+│   ├── pipeline/                config.py · steps.py · runner.py
+│   ├── api/app.py               FastAPI
+│   └── utils/                   io.py · cache.py · logging.py · packaging.py
+├── ui/app.py                    Streamlit (client HTTP de l'API)
+├── notebooks/                   00 Colab tout-en-un · 01 EDA · 02 TF-IDF · 03 SBERT · 05/06 ablations
+├── tests/unit/ · tests/integration/   (dont le pipeline complet hors-ligne)
+├── docker/ · compose.yaml · Makefile · .env.example · .vscode/
+├── data/{raw,processed,cache,eval}/  artifacts/  results/   (générés, non versionnés)
 ```
 
-Correspondance avec le guide : `ml/pdf_extractor.py` → `src/cvmatch/pdf_extractor.py` ;
-`ml/matching.py` → `src/cvmatch/matching.py` + `ranking/` ; `llm/gemini_client.py` → `src/cvmatch/explain/gemini.py`.
+## 8. Choix de conception
 
-## 8. Choix de conception à justifier à l'oral
+- **Une seule source de vérité** : notebooks, CLI, API et tests appellent le même package.
+- **Pipeline par étapes** avec entrées/sorties explicites, reprise, cache et manifeste d'exécution.
+- **Rankers / explainers interchangeables** (factories) : une ablation = un seul paramètre qui change.
+- **Évaluation sur pool figé** : une paire non annotée n'est jamais traitée comme négative.
+- **Embeddings pré-calculés** ; seul le CV est encodé à la requête (découpé en blocs puis moyenné).
+- **Diversité du Top 3** : pas trois fois le même intitulé publié par plusieurs agences.
+- **Garde-fou anti-invention** : toute compétence/preuve de Gemini est vérifiée dans le CV et l'offre.
+- **Vie privée** : e-mail, téléphone, liens, adresse masqués **avant** logs et appel Gemini.
+- **Limites** : catalogue 2005-2022, pas de filtre d'éligibilité, dictionnaire de compétences extensible
+  (`preprocessing/skills.py`), troncature des très longues offres par SBERT.
 
-- **Rankers interchangeables** (même interface) : l'ablation ne change qu'une option, et les notebooks
-  exécutent exactement le code de l'API.
-- **Évaluation sur pool figé** : chaque CV est classé parmi *ses* offres annotées ; une paire non annotée n'est
-  jamais traitée comme négative.
-- **Embeddings pré-calculés** ; seul le CV est encodé à la requête (les longs CV sont découpés en blocs puis moyennés).
-- **Diversité du Top 3** (`diversify`) : évite trois fois le même intitulé publié par plusieurs agences.
-- **Garde-fou anti-invention** : toute compétence / preuve renvoyée par Gemini est vérifiée dans le CV et
-  l'offre ; ce qui n'y figure pas est retiré et compté (`unverified_skills`, `guard_removed`).
-- **Vie privée** : e-mail, téléphone, liens et adresse masqués **avant** logs et appel Gemini ; utilisez des CV
-  fictifs/anonymisés/consentis uniquement.
-- **Limites connues** : catalogue 2005-2022 (récent = 2019-2022 par défaut) ; pas de filtre d'éligibilité
-  (diplôme/expérience) ; dictionnaire de compétences limité (extensible dans `skills.py`) ; le modèle SBERT tronque
-  les très longues offres.
+## 9. Tests & archive
 
-## 9. État de validation
-
-Exécuté et vérifié hors-ligne sur des **données synthétiques** : nettoyage, masquage PII, extraction de
-compétences, TF-IDF, chaîne SBERT (encodeur factice), garde-fou Gemini (client simulé), service, métriques,
-`finalize_labels`, scripts 1/3/4/7/8. **Non exécuté dans l'environnement de conception** (pas d'accès réseau) :
-téléchargement Hugging Face, modèle SBERT réel, appels Gemini réels, PyMuPDF, FastAPI/Streamlit, Docker. Les tests
-`tests/test_pdf_api.py` couvrent PDF + API : lancez `pytest` après installation.
+```bash
+pytest                 # unitaires + intégration (pipeline hors-ligne, API, PDF, CLI)
+cvmatch package        # dist/cv-matching.zip (code + config + docs, sans données ni .env)
+```
 
 ## 10. Dépannage
 
-- `FileNotFoundError … jobs_clean` → étape 1 ; `Embeddings introuvables` → étape 2.
-- `/health` affiche `degraded` → lisez le champ `error` (artefacts manquants).
-- Gemini 429 / quota → augmentez `GEMINI_MIN_INTERVAL`, gardez le cache, ou `EXPLAINER=rules`.
-- PDF « scanné » (aucun texte) → utilisez un PDF numérique (erreur 422 attendue).
-- Noms de colonnes différents du dataset réel → ajustez les constantes en tête de `src/cvmatch/data.py`.
+- `Catalogue introuvable` → `cvmatch prepare` ; `Embeddings introuvables` → `cvmatch embed`.
+- `/health` = `degraded` → lire le champ `error`.
+- Gemini 429 / quota → augmenter `GEMINI_MIN_INTERVAL`, garder le cache, ou `EXPLAINER=rules`.
+- PDF scanné (aucun texte) → PDF numérique requis (erreur 422).
+- Colonnes différentes dans le dataset réel → constantes en tête de `src/cvmatch/data/catalog.py`.

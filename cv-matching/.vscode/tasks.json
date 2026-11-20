@@ -1,19 +1,17 @@
 {
   "version": "2.0.0",
   "tasks": [
-    { "label": "1. Préparer les offres", "type": "shell",
-      "command": "${command:python.interpreterPath} scripts/prepare_data.py", "problemMatcher": [] },
-    { "label": "2. Calculer les embeddings", "type": "shell",
-      "command": "${command:python.interpreterPath} scripts/build_artifacts.py", "problemMatcher": [] },
-    { "label": "3. CV fictifs de démo", "type": "shell",
-      "command": "${command:python.interpreterPath} scripts/make_demo_cvs.py", "problemMatcher": [] },
-    { "label": "Ablation ML (B0/F1/A1)", "type": "shell",
-      "command": "${command:python.interpreterPath} scripts/run_ablation.py", "problemMatcher": [] },
-    { "label": "Ablation LLM (L0/L1/A2)", "type": "shell",
-      "command": "${command:python.interpreterPath} scripts/run_llm_ablation.py --no-cache", "problemMatcher": [] },
-    { "label": "Tests", "type": "shell",
-      "command": "${command:python.interpreterPath} -m pytest", "group": "test", "problemMatcher": [] },
-    { "label": "Docker up", "type": "shell",
-      "command": "docker compose up --build", "problemMatcher": [] }
+    { "label": "Pipeline complet", "type": "shell", "command": "cvmatch pipeline", "problemMatcher": [] },
+    { "label": "Pipeline hors-ligne (démo)", "type": "shell", "command": "cvmatch pipeline --offline", "problemMatcher": [] },
+    { "label": "1. prepare", "type": "shell", "command": "cvmatch prepare", "problemMatcher": [] },
+    { "label": "2. embed", "type": "shell", "command": "cvmatch embed", "problemMatcher": [] },
+    { "label": "3. cvs + pool", "type": "shell", "command": "cvmatch cvs && cvmatch pool", "problemMatcher": [] },
+    { "label": "4. labels", "type": "shell", "command": "cvmatch labels", "problemMatcher": [] },
+    { "label": "5. ablate-ml", "type": "shell", "command": "cvmatch ablate-ml", "problemMatcher": [] },
+    { "label": "6. ablate-llm", "type": "shell", "command": "cvmatch ablate-llm", "problemMatcher": [] },
+    { "label": "7. report", "type": "shell", "command": "cvmatch report", "problemMatcher": [] },
+    { "label": "Tests", "type": "shell", "command": "${command:python.interpreterPath} -m pytest", "group": "test", "problemMatcher": [] },
+    { "label": "Archive zip", "type": "shell", "command": "cvmatch package", "problemMatcher": [] },
+    { "label": "Docker up", "type": "shell", "command": "docker compose up --build", "problemMatcher": [] }
   ]
 }

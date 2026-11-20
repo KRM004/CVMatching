@@ -4,8 +4,11 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .pytest_cache/
+.ruff_cache/
 *.egg-info/
-# gros fichiers / données reconstructibles
+dist/
+build/
+# données / sorties reconstructibles (cvmatch pipeline)
 artifacts/*
 !artifacts/.gitkeep
 data/raw/*
@@ -17,3 +20,5 @@ data/cache/*
 # CV : ne JAMAIS committer de vrais CV
 data/eval/cvs/*
 !data/eval/cvs/.gitkeep
+results/*
+!results/.gitkeep

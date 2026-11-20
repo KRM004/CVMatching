@@ -1,8 +1,8 @@
 import re
 
-from cvmatch.cleaning import TOKEN_PATTERN, clean_text, raw_text
-from cvmatch.pii import mask_pii
-from cvmatch.skills import extract_skills, find_evidence
+from cvmatch.preprocessing.cleaning import TOKEN_PATTERN, clean_text, raw_text
+from cvmatch.preprocessing.pii import mask_pii
+from cvmatch.preprocessing.skills import extract_skills, find_evidence
 
 
 def test_clean_preserves_technical_terms():

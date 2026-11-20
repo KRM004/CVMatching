@@ -5,7 +5,7 @@ from typing import Optional, Sequence
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-from ..cleaning import TOKEN_PATTERN
+from ..preprocessing.cleaning import TOKEN_PATTERN
 from .base import Ranked, top_k_from_scores
 
 

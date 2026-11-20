@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from typing import Optional
 
+from ..preprocessing.skills import extract_skills, find_evidence
 from ..schemas import Explanation
-from ..skills import extract_skills, find_evidence
 
 _TXT = {
     "fr": {

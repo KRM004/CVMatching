@@ -4,12 +4,14 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import pandas as pd
 
-from .data import job_texts
+from ..data.catalog import job_texts
+from ..utils.logging import get_logger
+
+log = get_logger(__name__)
 
 
 def _slug(name: str) -> str:
@@ -37,8 +39,9 @@ def build_embeddings(
     chunks = []
     for i in range(0, len(texts), batch_size):
         chunks.append(np.asarray(encoder(texts[i : i + batch_size]), dtype=np.float32))
-        if (i // batch_size) % 20 == 0:
-            print(f"  {min(i + batch_size, len(texts))}/{len(texts)} offres encodées", flush=True)
+        done = min(i + batch_size, len(texts))
+        if (i // batch_size) % 20 == 0 or done == len(texts):
+            log.info("  %d/%d offres encodées (%s)", done, len(texts), "clean" if cleaning else "raw")
     emb = np.vstack(chunks)
     out = embeddings_path(artifacts_dir, model_name, cleaning)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -62,12 +65,12 @@ def load_embeddings(
     if not path.exists():
         raise FileNotFoundError(
             f"Embeddings introuvables : {path}\n"
-            "Lancez d'abord :  python scripts/build_artifacts.py"
+            "Lancez d'abord :  cvmatch embed"
         )
     emb = np.load(path)
     if emb.shape[0] != len(jobs):
         raise ValueError(
             f"Embeddings ({emb.shape[0]}) et offres ({len(jobs)}) désynchronisés : "
-            "relancez python scripts/build_artifacts.py"
+            "relancez :  cvmatch embed --force"
         )
     return emb

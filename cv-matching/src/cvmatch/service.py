@@ -1,4 +1,7 @@
-"""Orchestrateur : PDF/texte -> masquage PII -> (cleaning) -> ranking -> explications."""
+"""Service de matching (inférence) : CV -> masquage PII -> nettoyage -> classement -> explications.
+
+C'est le même objet qu'utilisent l'API, l'UI (via l'API), les notebooks et les tests.
+"""
 from __future__ import annotations
 
 import time
@@ -6,20 +9,20 @@ from typing import Optional
 
 import pandas as pd
 
-from .artifacts import load_embeddings
-from .cleaning import clean_text, raw_text
 from .config import Settings, get_settings
-from .data import job_texts, load_jobs
-from .explain.gemini import GeminiExplainer
-from .explain.rules import RuleExplainer
-from .pii import mask_pii
-from .ranking import Ranker, SbertRanker, TfidfRanker, diversify
+from .data.catalog import load_jobs
+from .explain.factory import build_explainers
+from .preprocessing import extract_skills, prepare_resume
+from .ranking import Ranker, build_ranker, diversify
 from .schemas import MatchResponse, Recommendation
-from .skills import extract_skills
 
 
 def _none_if_empty(v: object) -> Optional[str]:
     return v if isinstance(v, str) and v.strip() else None
+
+
+def _py(v):
+    return v.item() if hasattr(v, "item") else v
 
 
 class MatchingService:
@@ -40,11 +43,6 @@ class MatchingService:
         self.diversify_results = diversify_results
         self._titles = self.jobs["job_title"].tolist()
 
-    def preprocess(self, resume_text: str) -> str:
-        """Masquage PII (toujours) puis nettoyage (si activé)."""
-        masked = mask_pii(resume_text)
-        return clean_text(masked) if self.cleaning else raw_text(masked)
-
     def match(
         self,
         resume_text: str,
@@ -57,12 +55,13 @@ class MatchingService:
         timings: dict[str, float] = {}
         warnings: list[str] = []
 
+        # 1. prétraitement : seul le texte MASQUÉ peut quitter le service (Gemini)
         t0 = time.perf_counter()
-        masked = mask_pii(resume_text)  # c'est CE texte qui peut partir vers Gemini
-        query = clean_text(masked) if self.cleaning else raw_text(masked)
+        masked, query = prepare_resume(resume_text, self.cleaning)
         resume_skills = extract_skills(masked)
         timings["preprocess"] = (time.perf_counter() - t0) * 1000
 
+        # 2. classement (+ diversité des intitulés)
         t0 = time.perf_counter()
         pool = max(top_k * 5, 15) if self.diversify_results else top_k
         ranked = self.ranker.rank(query, top_k=pool)
@@ -71,6 +70,7 @@ class MatchingService:
         ranked = ranked[:top_k]
         timings["ranking"] = (time.perf_counter() - t0) * 1000
 
+        # 3. explications
         exp_name = explainer or self.default_explainer
         exp = self.explainers.get(exp_name) if explain else None
         if explain and exp is None:
@@ -88,7 +88,7 @@ class MatchingService:
                     warnings.append(msg)
             recs.append(
                 Recommendation(
-                    job_id=row["job_id"].item() if hasattr(row["job_id"], "item") else row["job_id"],
+                    job_id=_py(row["job_id"]),
                     job_title=row["job_title"],
                     job_description=row["job_description"],
                     similarity_score=round(r.score, 4),
@@ -110,30 +110,6 @@ class MatchingService:
         )
 
 
-def build_explainers(settings: Settings) -> dict:
-    explainers: dict = {"rules": RuleExplainer(settings.language)}
-    explainers["gemini"] = GeminiExplainer(
-        api_key=settings.gemini_api_key,
-        model=settings.gemini_model,
-        language=settings.language,
-        include_job_description=settings.job_context,
-        cache_dir=settings.cache_dir / "gemini",
-        min_interval=settings.gemini_min_interval,
-    )
-    return explainers
-
-
-def build_ranker(jobs: pd.DataFrame, settings: Settings, encoder=None) -> Ranker:
-    if settings.ranker == "tfidf":
-        return TfidfRanker(job_texts(jobs, settings.cleaning))
-    if settings.ranker == "sbert":
-        emb = load_embeddings(jobs, settings.sbert_model, settings.artifacts_dir, settings.cleaning)
-        if encoder is not None:
-            return SbertRanker(emb, encoder)
-        return SbertRanker.from_model(emb, settings.sbert_model)
-    raise ValueError(f"RANKER inconnu : {settings.ranker} (sbert | tfidf)")
-
-
 def build_service(
     settings: Optional[Settings] = None, jobs: Optional[pd.DataFrame] = None, encoder=None
 ) -> MatchingService:
@@ -142,7 +118,7 @@ def build_service(
         if not settings.jobs_path.exists():
             raise FileNotFoundError(
                 f"Catalogue introuvable : {settings.jobs_path}\n"
-                "Lancez d'abord :  python scripts/prepare_data.py"
+                "Lancez d'abord :  cvmatch prepare   (ou : cvmatch pipeline)"
             )
         jobs = load_jobs(settings.jobs_path)
     return MatchingService(
